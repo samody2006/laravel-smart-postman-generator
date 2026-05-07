@@ -43,17 +43,11 @@
     },
 
     "require": {
-        "php": "^8.1",
-
+        "php": "^8.3",
         "ext-json": "*",
 
-        "illuminate/config": "^10.0|^11.0|^12.0",
-        "illuminate/console": "^10.0|^11.0|^12.0",
-        "illuminate/contracts": "^10.0|^11.0|^12.0",
-        "illuminate/routing": "^10.0|^11.0|^12.0",
         "illuminate/support": "^10.0|^11.0|^12.0",
-
-        "phpstan/phpdoc-parser": "^2.0"
+        "phpstan/phpdoc-parser": "^1.26|^2.0"
     },
 
     "require-dev": {
