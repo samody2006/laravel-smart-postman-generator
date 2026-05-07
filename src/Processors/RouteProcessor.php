@@ -1,0 +1,423 @@
+<?php
+
+namespace Samody\PostmanGenerator\Processors;
+
+use Samody\PostmanGenerator\Concerns\HasAuthentication;
+use Closure;
+use Illuminate\Contracts\Config\Repository;
+use Illuminate\Contracts\Validation\Rule;
+use Illuminate\Routing\Route;
+use Illuminate\Routing\Router;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Support\Stringable;
+use Illuminate\Validation\ValidationRuleParser;
+use ReflectionClass;
+use ReflectionFunction;
+
+class RouteProcessor
+{
+    use HasAuthentication;
+
+    private array $config;
+
+    private Router $router;
+
+    private RequestNameGenerator $nameGenerator;
+
+    private array $output;
+
+    public function __construct(Repository $config, Router $router, RequestNameGenerator $nameGenerator)
+    {
+        $this->config = $config['api-postman'];
+
+        $this->router = $router;
+
+        $this->nameGenerator = $nameGenerator;
+
+        $this->resolveAuth();
+    }
+
+    public function process(array $output): array
+    {
+        $this->output = $output;
+
+        $routes = collect($this->router->getRoutes());
+
+        /** @var Route $route */
+        foreach ($routes as $route) {
+            if ($this->config['path'] && ! Str::is($this->config['path'].'*', $route->uri())) {
+                continue;
+            }
+
+            $this->processRoute($route);
+        }
+
+        return $this->output;
+    }
+
+    /**
+     * @throws \ReflectionException
+     */
+    protected function processRoute(Route $route)
+    {
+        try {
+            $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+            $middlewares = $route->gatherMiddleware();
+
+            foreach ($methods as $method) {
+                $includedMiddleware = false;
+
+                foreach ($middlewares as $middleware) {
+                    if (in_array($middleware, $this->config['include_middleware'])) {
+                        $includedMiddleware = true;
+                    }
+                }
+
+                if (empty($middlewares) || ! $includedMiddleware) {
+                    continue;
+                }
+
+                $reflectionMethod = $this->getReflectionMethod($route->getAction());
+
+                if (! $reflectionMethod) {
+                    continue;
+                }
+
+                $routeHeaders = $this->config['headers'];
+
+                if ($this->authentication && in_array($this->config['auth_middleware'], $middlewares)) {
+                    $routeHeaders[] = $this->authentication->toArray();
+                }
+
+                $uri = Str::of($route->uri())->replaceMatches('/{([[:alnum:]_]+)}/', ':$1');
+
+                if ($this->config['include_doc_comments']) {
+                    $description = (new DocBlockProcessor)($reflectionMethod);
+                }
+
+                $data = [
+                    'name' => $this->config['smart_naming']
+                        ? $this->nameGenerator->generate($route, $method)
+                        : $route->uri(),
+                    'request' => $this->processRequest(
+                        $method,
+                        $uri,
+                        $this->config['enable_formdata'] ? (new FormDataProcessor)->process($reflectionMethod) : collect()
+                    ),
+                    'response' => [],
+
+                    'protocolProfileBehavior' => [
+                        'disableBodyPruning' => $this->config['protocol_profile_behavior']['disable_body_pruning'] ?? false,
+                    ],
+                ];
+
+                $data['request']['description'] = $description ?? '';
+
+                $groupBy = $this->config['group_by'] ?? ($this->config['structured'] ? 'path' : 'none');
+
+                if ($groupBy !== 'none') {
+                    if ($groupBy === 'controller') {
+                        $routeNameSegments = collect([
+                            Str::of($route->getActionName())
+                                ->before('@')
+                                ->afterLast('\\')
+                                ->replace('Controller', '')
+                                ->toString()
+                        ]);
+                    } else {
+                        $routeNameSegments = (
+                            $route->getName()
+                                ? Str::of($route->getName())->explode('.')
+                                : Str::of($route->uri())->after('api/')->explode('/')
+                        )->filter(fn ($value) => ! is_null($value) && $value !== '');
+
+                        if (! $this->config['crud_folders']) {
+                            if (in_array($routeNameSegments->last(), ['index', 'store', 'show', 'update', 'destroy'])) {
+                                $routeNameSegments->forget($routeNameSegments->count() - 1);
+                            }
+                        }
+                    }
+
+                    $this->buildTree($this->output, $routeNameSegments->all(), $data);
+                } else {
+                    $this->output['item'][] = $data;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to process route: '.$route->uri());
+        }
+    }
+
+    protected function processRequest(string $method, Stringable $uri, Collection $rules): array
+    {
+        $headers = collect($this->config['headers'])
+            ->push($this->authentication?->toArray())
+            ->filter()
+            ->values()
+            ->all();
+
+        return collect([
+            'method' => strtoupper($method),
+            'header' => $headers,
+            'url' => [
+                'raw' => '{{base_url}}/'.$uri,
+                'host' => ['{{base_url}}'],
+                'path' => $uri->explode('/')->filter()->all(),
+                'variable' => $uri
+                    ->matchAll('/(?<={)[[:alnum:]]+(?=})/m')
+                    ->transform(function ($variable) {
+                        return ['key' => $variable, 'value' => ''];
+                    })
+                    ->all(),
+            ],
+        ])
+            ->when($rules, function (Collection $collection, Collection $rules) use ($method) {
+                if ($rules->isEmpty()) {
+                    return $collection;
+                }
+
+                if ($method === 'GET') {
+                    return $collection->mergeRecursive([
+                        'url' => [
+                            'query' => $rules->transform(fn ($rule, $name) => [
+                                'key' => $name,
+                                'value' => $this->config['formdata'][$name] ?? null,
+                                'description' => $this->config['print_rules'] ? $this->parseRulesIntoHumanReadable($name, $rule) : null,
+                                'disabled' => false,
+                            ])->values()->all(),
+                        ],
+                    ]);
+                }
+
+                $bodyMode = $this->config['body_mode'] ?? 'default';
+
+                if ($bodyMode === 'auto') {
+                    $bodyMode = (new BodyModeResolver)->resolve($rules->all());
+                }
+
+                if ($bodyMode === 'default') {
+                    if ($this->config['body_format'] === 'json') {
+                        return $collection->put('body', [
+                            'mode' => 'raw',
+                            'raw' => json_encode($rules->mapWithKeys(fn ($rule, $name) => [$name => $this->config['formdata'][$name] ?? null])->all(), JSON_PRETTY_PRINT),
+                            'options' => [
+                                'raw' => [
+                                    'language' => 'json',
+                                ],
+                            ],
+                        ]);
+                    }
+
+                    return $collection->put('body', [
+                        'mode' => 'urlencoded',
+                        'urlencoded' => $rules->map(fn ($rule, $name) => [
+                            'key' => $name,
+                            'value' => $this->config['formdata'][$name] ?? null,
+                            'description' => $this->config['print_rules'] ? $this->parseRulesIntoHumanReadable($name, $rule) : null,
+                        ])->values()->all(),
+                    ]);
+                }
+
+                if ($bodyMode === 'json') {
+                    return $collection->put('body', [
+                        'mode' => 'raw',
+                        'raw' => json_encode((new RequestSchemaBuilder)->build($rules->all()), JSON_PRETTY_PRINT),
+                        'options' => [
+                            'raw' => [
+                                'language' => 'json',
+                            ],
+                        ],
+                    ]);
+                }
+
+                if ($bodyMode === 'formdata') {
+                    return $collection->put('body', [
+                        'mode' => 'formdata',
+                        'formdata' => $rules->map(fn ($rule, $name) => [
+                            'key' => $name,
+                            'value' => $this->config['formdata'][$name] ?? null,
+                            'description' => $this->config['print_rules'] ? $this->parseRulesIntoHumanReadable($name, $rule) : null,
+                            'type' => 'text',
+                        ])->values()->all(),
+                    ]);
+                }
+
+                return $collection;
+            })
+            ->all();
+    }
+
+    protected function processResponse(string $method, array $action): array
+    {
+        return [
+            'code' => 200,
+            'body' => [
+                'mode' => 'raw',
+                'raw' => '',
+            ],
+        ];
+    }
+
+    /**
+     * @throws \ReflectionException
+     */
+    private function getReflectionMethod(array $routeAction): ?object
+    {
+        if ($this->containsSerializedClosure($routeAction)) {
+            $routeAction['uses'] = unserialize($routeAction['uses'])->getClosure();
+        }
+
+        if ($routeAction['uses'] instanceof Closure) {
+            return new ReflectionFunction($routeAction['uses']);
+        }
+
+        $routeData = explode('@', $routeAction['uses']);
+        $reflection = new ReflectionClass($routeData[0]);
+
+        if (! $reflection->hasMethod($routeData[1])) {
+            return null;
+        }
+
+        return $reflection->getMethod($routeData[1]);
+    }
+
+    private function containsSerializedClosure(array $action): bool
+    {
+        return is_string($action['uses']) && Str::startsWith($action['uses'], [
+            'C:32:"Opis\\Closure\\SerializableClosure',
+            'O:47:"Laravel\SerializableClosure\\SerializableClosure',
+            'O:55:"Laravel\\SerializableClosure\\UnsignedSerializableClosure',
+        ]);
+    }
+
+    protected function buildTree(array &$routes, array $segments, array $request): void
+    {
+        $parent = &$routes;
+        $destination = end($segments);
+
+        foreach ($segments as $segment) {
+            $matched = false;
+
+            foreach ($parent['item'] as &$item) {
+                if ($item['name'] === $segment) {
+                    $parent = &$item;
+
+                    if ($segment === $destination) {
+                        $parent['item'][] = $request;
+                    }
+
+                    $matched = true;
+
+                    break;
+                }
+            }
+
+            unset($item);
+
+            if (! $matched) {
+                $item = [
+                    'name' => $segment,
+                    'item' => $segment === $destination ? [$request] : [],
+                ];
+
+                $parent['item'][] = &$item;
+                $parent = &$item;
+            }
+
+            unset($item);
+        }
+    }
+
+    protected function parseRulesIntoHumanReadable($attribute, $rules): string
+    {
+        if (is_string($rules)) {
+            $rules = explode('|', $rules);
+        }
+
+        // ... bail if user has asked for non interpreted strings:
+        if (! $this->config['rules_to_human_readable']) {
+            if (is_array($rules)) {
+                foreach ($rules as $i => $rule) {
+                    // because we don't support custom rule classes, we remove them from the rules
+                    if (is_object($rule) && ! method_exists($rule, '__toString')) {
+                        unset($rules[$i]);
+                    }
+                }
+            }
+
+            return is_array($rules)
+                ? implode(', ', array_map(fn ($rule) => (string) $rule, $rules))
+                : (is_object($rules) ? $this->safelyStringifyClassBasedRule($rules) : (string) $rules);
+        }
+
+        /*
+         * An object based rule is presumably a Laravel default class based rule or one that implements the Illuminate
+         * Rule interface. Lets try to safely access the string representation...
+         */
+        if (is_object($rules)) {
+            $rules = [$this->safelyStringifyClassBasedRule($rules)];
+        }
+
+        /*
+         * Handle string based rules (e.g. required|string|max:30)
+         */
+        if (is_array($rules)) {
+            foreach ($rules as $i => $rule) {
+                if (is_object($rule)) {
+                    unset($rules[$i]);
+                }
+            }
+
+            $validator = Validator::make([], [$attribute => implode('|', $rules)]);
+
+            foreach ($rules as $rule) {
+                [$rule, $parameters] = ValidationRuleParser::parse($rule);
+
+                $validator->addFailure($attribute, $rule, $parameters);
+            }
+
+            $messages = $validator->getMessageBag()->toArray()[$attribute];
+
+            if (is_array($messages)) {
+                $messages = $this->handleEdgeCases($messages);
+            }
+
+            return implode(', ', is_array($messages) ? $messages : $messages->toArray());
+        }
+
+        // ...safely return a safe value if we encounter neither a string or object based rule set:
+        return '';
+    }
+
+    protected function handleEdgeCases(array $messages): array
+    {
+        foreach ($messages as $key => $message) {
+            if ($message === 'validation.nullable') {
+                $messages[$key] = '(Nullable)';
+
+                continue;
+            }
+
+            if ($message === 'validation.sometimes') {
+                $messages[$key] = '(Optional)';
+            }
+        }
+
+        return $messages;
+    }
+
+    /**
+     * In this case we have received what is most likely a Rule Object but are not certain.
+     */
+    protected function safelyStringifyClassBasedRule($probableRule): string
+    {
+        if (! is_object($probableRule) || is_subclass_of($probableRule, Rule::class) || ! method_exists($probableRule, '__toString')) {
+            return '';
+        }
+
+        return (string) $probableRule;
+    }
+}

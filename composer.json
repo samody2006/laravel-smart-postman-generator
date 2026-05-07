@@ -1,0 +1,86 @@
+{
+    "name": "samody/laravel-smart-postman-generator",
+    "description": "A smart Laravel-to-Postman collection generator focused on clean structure, smart naming, request body generation, and documentation-ready API exports.",
+    "keywords": [
+        "laravel",
+        "postman",
+        "api",
+        "documentation",
+        "collection",
+        "generator",
+        "swagger",
+        "openapi",
+        "formrequest",
+        "rest-api"
+    ],
+    "type": "library",
+    "license": "MIT",
+
+    "authors": [
+        {
+            "name": "Samson Radje",
+            "email": "samody2006@gmail.com"
+        }
+    ],
+
+    "homepage": "https://github.com/samody/laravel-smart-postman-generator",
+
+    "support": {
+        "issues": "https://github.com/samody/laravel-smart-postman-generator/issues",
+        "source": "https://github.com/samody/laravel-smart-postman-generator"
+    },
+
+    "autoload": {
+        "psr-4": {
+            "Samody\\PostmanGenerator\\": "src/"
+        }
+    },
+
+    "autoload-dev": {
+        "psr-4": {
+            "Samody\\PostmanGenerator\\Tests\\": "tests/"
+        }
+    },
+
+    "require": {
+        "php": "^8.1",
+
+        "ext-json": "*",
+
+        "illuminate/config": "^10.0|^11.0|^12.0",
+        "illuminate/console": "^10.0|^11.0|^12.0",
+        "illuminate/contracts": "^10.0|^11.0|^12.0",
+        "illuminate/routing": "^10.0|^11.0|^12.0",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+
+        "phpstan/phpdoc-parser": "^2.0"
+    },
+
+    "require-dev": {
+        "laravel/pint": "^1.13",
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "phpunit/phpunit": "^10.0|^11.0"
+    },
+
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Samody\\PostmanGenerator\\PostmanGeneratorServiceProvider"
+            ]
+        },
+
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
