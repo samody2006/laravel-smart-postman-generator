@@ -63,7 +63,7 @@ class ExportPostmanTest extends TestCase
                     break;
                 }
             }
-            if (!$included) {
+            if (! $included) {
                 continue;
             }
             $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
@@ -142,7 +142,7 @@ class ExportPostmanTest extends TestCase
                     break;
                 }
             }
-            if (!$included) {
+            if (! $included) {
                 continue;
             }
             $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
@@ -219,7 +219,7 @@ class ExportPostmanTest extends TestCase
                     break;
                 }
             }
-            if (!$included) {
+            if (! $included) {
                 continue;
             }
             $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');

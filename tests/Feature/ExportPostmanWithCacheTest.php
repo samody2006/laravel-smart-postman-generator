@@ -10,7 +10,7 @@ use Samody\PostmanGenerator\Tests\TestCase;
 
 class ExportPostmanWithCacheTest extends TestCase
 {
-    use HandlesRoutes, CollectionHelpersTrait;
+    use CollectionHelpersTrait, HandlesRoutes;
 
     protected function setUp(): void
     {
@@ -73,7 +73,7 @@ PHP);
                     break;
                 }
             }
-            if (!$included) {
+            if (! $included) {
                 continue;
             }
 
