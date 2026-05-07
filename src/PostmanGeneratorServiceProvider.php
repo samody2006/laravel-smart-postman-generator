@@ -2,8 +2,8 @@
 
 namespace Samody\PostmanGenerator;
 
-use Samody\PostmanGenerator\Commands\ExportPostmanCommand;
 use Illuminate\Support\ServiceProvider;
+use Samody\PostmanGenerator\Commands\ExportPostmanCommand;
 
 class PostmanGeneratorServiceProvider extends ServiceProvider
 {

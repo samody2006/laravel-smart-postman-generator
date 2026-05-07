@@ -2,9 +2,9 @@
 
 namespace Samody\PostmanGenerator;
 
+use Illuminate\Contracts\Config\Repository;
 use Samody\PostmanGenerator\Concerns\HasAuthentication;
 use Samody\PostmanGenerator\Processors\RouteProcessor;
-use Illuminate\Contracts\Config\Repository;
 
 class Exporter
 {

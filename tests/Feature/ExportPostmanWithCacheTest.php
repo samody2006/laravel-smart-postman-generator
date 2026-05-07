@@ -2,10 +2,10 @@
 
 namespace Samody\PostmanGenerator\Tests\Feature;
 
-use Samody\PostmanGenerator\Tests\TestCase;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Orchestra\Testbench\Concerns\HandlesRoutes;
+use Samody\PostmanGenerator\Tests\TestCase;
 
 class ExportPostmanWithCacheTest extends TestCase
 {

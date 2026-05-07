@@ -2,11 +2,11 @@
 
 namespace Samody\PostmanGenerator\Tests\Feature;
 
-use Samody\PostmanGenerator\Tests\Fixtures\CollectionHelpersTrait;
-use Samody\PostmanGenerator\Tests\TestCase;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Samody\PostmanGenerator\Tests\Fixtures\CollectionHelpersTrait;
+use Samody\PostmanGenerator\Tests\TestCase;
 
 class ExportPostmanTest extends TestCase
 {

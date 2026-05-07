@@ -2,8 +2,8 @@
 
 namespace Samody\PostmanGenerator\Concerns;
 
-use Samody\PostmanGenerator\Authentication\AuthenticationMethod;
 use Illuminate\Support\Str;
+use Samody\PostmanGenerator\Authentication\AuthenticationMethod;
 
 trait HasAuthentication
 {

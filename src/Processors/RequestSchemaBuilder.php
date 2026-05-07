@@ -2,17 +2,16 @@
 
 namespace Samody\PostmanGenerator\Processors;
 
-use Illuminate\Support\Collection;
-
 class RequestSchemaBuilder
 {
     private RuleTreeBuilder $treeBuilder;
+
     private ValueResolver $valueResolver;
 
     public function __construct()
     {
-        $this->treeBuilder = new RuleTreeBuilder();
-        $this->valueResolver = new ValueResolver();
+        $this->treeBuilder = new RuleTreeBuilder;
+        $this->valueResolver = new ValueResolver;
     }
 
     public function build(array $rules): array

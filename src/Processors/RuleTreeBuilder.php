@@ -39,6 +39,7 @@ class RuleTreeBuilder
             if (Arr::isAssoc($value) || (isset($value[0]) && is_array($value[0])) || isset($value['*'])) {
                 return $this->processTree($value);
             }
+
             return $value;
         }
 

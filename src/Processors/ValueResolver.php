@@ -2,8 +2,6 @@
 
 namespace Samody\PostmanGenerator\Processors;
 
-use Illuminate\Support\Str;
-
 class ValueResolver
 {
     public function resolve(array $rules): mixed

@@ -2,9 +2,9 @@
 
 namespace Samody\PostmanGenerator\Tests\Feature;
 
+use Illuminate\Support\Facades\Storage;
 use Samody\PostmanGenerator\Tests\Fixtures\CollectionHelpersTrait;
 use Samody\PostmanGenerator\Tests\TestCase;
-use Illuminate\Support\Facades\Storage;
 
 class SmartNamingAndGroupingTest extends TestCase
 {

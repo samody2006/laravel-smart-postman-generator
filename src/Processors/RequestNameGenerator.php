@@ -10,10 +10,10 @@ use Illuminate\Support\Str;
 final readonly class RequestNameGenerator
 {
     private const VERB_MAP = [
-        'GET'    => 'Get',
-        'POST'   => 'Create',
-        'PUT'    => 'Update',
-        'PATCH'  => 'Update',
+        'GET' => 'Get',
+        'POST' => 'Create',
+        'PUT' => 'Update',
+        'PATCH' => 'Update',
         'DELETE' => 'Delete',
     ];
 
@@ -40,7 +40,7 @@ final readonly class RequestNameGenerator
             ->reverse();
 
         if ($segments->isEmpty()) {
-            return $verb . ' Request';
+            return $verb.' Request';
         }
 
         $resource = $segments->shift();

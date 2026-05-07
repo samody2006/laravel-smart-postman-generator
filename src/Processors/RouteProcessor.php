@@ -2,7 +2,6 @@
 
 namespace Samody\PostmanGenerator\Processors;
 
-use Samody\PostmanGenerator\Concerns\HasAuthentication;
 use Closure;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Validation\Rule;
@@ -16,6 +15,7 @@ use Illuminate\Support\Stringable;
 use Illuminate\Validation\ValidationRuleParser;
 use ReflectionClass;
 use ReflectionFunction;
+use Samody\PostmanGenerator\Concerns\HasAuthentication;
 
 class RouteProcessor
 {
@@ -125,7 +125,7 @@ class RouteProcessor
                                 ->before('@')
                                 ->afterLast('\\')
                                 ->replace('Controller', '')
-                                ->toString()
+                                ->toString(),
                         ]);
                     } else {
                         $routeNameSegments = (

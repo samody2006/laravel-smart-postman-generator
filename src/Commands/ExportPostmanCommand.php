@@ -2,12 +2,12 @@
 
 namespace Samody\PostmanGenerator\Commands;
 
-use Samody\PostmanGenerator\Authentication\Basic;
-use Samody\PostmanGenerator\Authentication\Bearer;
-use Samody\PostmanGenerator\Exporter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Samody\PostmanGenerator\Authentication\Basic;
+use Samody\PostmanGenerator\Authentication\Bearer;
+use Samody\PostmanGenerator\Exporter;
 
 class ExportPostmanCommand extends Command
 {
