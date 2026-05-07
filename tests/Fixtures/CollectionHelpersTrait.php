@@ -6,11 +6,6 @@ trait CollectionHelpersTrait
 {
     private function retrieveRoutes(array $route)
     {
-        // Skip patch routes
-        if (isset($route['request']['method']) && $route['request']['method'] === 'PATCH') {
-            return 0;
-        }
-
         if (isset($route['item'])) {
             $sum = 0;
 

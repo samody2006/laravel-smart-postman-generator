@@ -42,7 +42,7 @@ class ExportPostmanPathFilterTest extends TestCase
         // users.audit-logs (index, store, show, update, destroy) = 5
         // users.other_logs (5)
         // users.someLogs (5)
-        // total = 15
-        $this->assertEquals(15, $totalCollectionItems);
+        // total = 15, but if PATCH is included, 18
+        $this->assertEquals(18, $totalCollectionItems);
     }
 }

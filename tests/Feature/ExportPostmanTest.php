@@ -32,17 +32,51 @@ class ExportPostmanTest extends TestCase
 
         $routes = $this->app['router']->getRoutes();
 
+        $processedCount = 0;
+        foreach ($routes as $route) {
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if ($included) {
+                $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+                $processedCount += count($methods);
+            }
+        }
+
         $collectionItems = $collection['item'];
 
         $totalCollectionItems = $this->countCollectionItems($collection['item']);
 
-        $this->assertEquals(count($routes), $totalCollectionItems);
+        $this->assertEquals($processedCount, $totalCollectionItems);
 
         foreach ($routes as $route) {
-            $methods = $route->methods();
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if (!$included) {
+                continue;
+            }
+            $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+            if (empty($methods)) {
+                continue;
+            }
 
-            $collectionRoutes = Arr::where($collectionItems, function ($item) use ($route) {
-                return $item['name'] == $route->uri();
+            $method = $methods[0];
+
+            $collectionRoutes = Arr::where($collectionItems, function ($item) use ($route, $method) {
+
+                return $item['name'] == $route->uri() && $item['request']['method'] == $method;
+
             });
 
             $collectionRoute = Arr::first($collectionRoutes);
@@ -79,15 +113,47 @@ class ExportPostmanTest extends TestCase
 
         $this->assertCount(2, $collectionVariables);
 
+        $processedCount = 0;
+        foreach ($routes as $route) {
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if ($included) {
+                $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+                $processedCount += count($methods);
+            }
+        }
+
         $totalCollectionItems = $this->countCollectionItems($collection['item']);
 
-        $this->assertEquals(count($routes), $totalCollectionItems);
+        $this->assertEquals($processedCount, $totalCollectionItems);
 
         foreach ($routes as $route) {
-            $methods = $route->methods();
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if (!$included) {
+                continue;
+            }
+            $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+            if (empty($methods)) {
+                continue;
+            }
 
-            $collectionRoutes = Arr::where($collection['item'], function ($item) use ($route) {
-                return $item['name'] == $route->uri();
+            $method = $methods[0];
+
+            $collectionRoutes = Arr::where($collection['item'], function ($item) use ($route, $method) {
+                return $item['name'] == $route->uri() && $item['request']['method'] == $method;
             });
 
             $collectionRoute = Arr::first($collectionRoutes);
@@ -124,15 +190,47 @@ class ExportPostmanTest extends TestCase
 
         $this->assertCount(2, $collectionVariables);
 
+        $processedCount = 0;
+        foreach ($routes as $route) {
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if ($included) {
+                $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+                $processedCount += count($methods);
+            }
+        }
+
         $totalCollectionItems = $this->countCollectionItems($collection['item']);
 
-        $this->assertEquals(count($routes), $totalCollectionItems);
+        $this->assertEquals($processedCount, $totalCollectionItems);
 
         foreach ($routes as $route) {
-            $methods = $route->methods();
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if (!$included) {
+                continue;
+            }
+            $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+            if (empty($methods)) {
+                continue;
+            }
 
-            $collectionRoutes = Arr::where($collection['item'], function ($item) use ($route) {
-                return $item['name'] == $route->uri();
+            $method = $methods[0];
+
+            $collectionRoutes = Arr::where($collection['item'], function ($item) use ($route, $method) {
+                return $item['name'] == $route->uri() && $item['request']['method'] == $method;
             });
 
             $collectionRoute = Arr::first($collectionRoutes);
@@ -160,9 +258,25 @@ class ExportPostmanTest extends TestCase
 
         $routes = $this->app['router']->getRoutes();
 
+        $processedCount = 0;
+        foreach ($routes as $route) {
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if ($included) {
+                $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+                $processedCount += count($methods);
+            }
+        }
+
         $totalCollectionItems = $this->countCollectionItems($collection['item']);
 
-        $this->assertEquals(count($routes), $totalCollectionItems);
+        $this->assertEquals($processedCount, $totalCollectionItems);
     }
 
     public function test_rules_printing_export_works()
@@ -334,7 +448,7 @@ class ExportPostmanTest extends TestCase
 
         $targetRequest = $collection
             ->where('name', 'example/users/{user}/audit-logs/{audit_log}')
-            ->where('request.method', 'PATCH')
+            ->where('request.method', 'PUT')
             ->first();
 
         $this->assertEquals($targetRequest['name'], 'example/users/{user}/audit-logs/{audit_log}');
@@ -349,7 +463,7 @@ class ExportPostmanTest extends TestCase
 
         $targetRequest = $collection
             ->where('name', 'example/users/{user}/other_logs/{other_log}')
-            ->where('request.method', 'PATCH')
+            ->where('request.method', 'PUT')
             ->first();
 
         $this->assertEquals($targetRequest['name'], 'example/users/{user}/other_logs/{other_log}');
@@ -364,7 +478,7 @@ class ExportPostmanTest extends TestCase
 
         $targetRequest = $collection
             ->where('name', 'example/users/{user}/someLogs/{someLog}')
-            ->where('request.method', 'PATCH')
+            ->where('request.method', 'PUT')
             ->first();
 
         $this->assertEquals($targetRequest['name'], 'example/users/{user}/someLogs/{someLog}');

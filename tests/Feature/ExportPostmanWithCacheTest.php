@@ -5,11 +5,12 @@ namespace Samody\PostmanGenerator\Tests\Feature;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Orchestra\Testbench\Concerns\HandlesRoutes;
+use Samody\PostmanGenerator\Tests\Fixtures\CollectionHelpersTrait;
 use Samody\PostmanGenerator\Tests\TestCase;
 
 class ExportPostmanWithCacheTest extends TestCase
 {
-    use HandlesRoutes;
+    use HandlesRoutes, CollectionHelpersTrait;
 
     protected function setUp(): void
     {
@@ -31,8 +32,6 @@ PHP);
 
     public function test_cached_export_works()
     {
-        $this->markTestSkipped('Vendor routes are included in the cached routes, so this test fails');
-
         $this->get('serialized-route')
             ->assertOk()
             ->assertSee('Serialized Route');
@@ -41,23 +40,51 @@ PHP);
 
         $collection = json_decode(Storage::get('postman/'.config('api-postman.filename')), true);
 
-        $routes = $this->app['router']->getRoutes()->getRoutesByName();
+        $routes = $this->app['router']->getRoutes();
 
-        // Filter out workbench routes from orchestra/workbench
-        $routes = array_filter($routes, function ($route) {
-            return strpos($route->uri(), 'workbench') === false;
-        });
+        $processedCount = 0;
+        foreach ($routes as $route) {
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if ($included) {
+                $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+                $processedCount += count($methods);
+            }
+        }
 
         $collectionItems = $collection['item'];
 
-        $this->assertCount(count($routes), $collectionItems);
+        $totalCollectionItems = $this->countCollectionItems($collection['item']);
+
+        $this->assertEquals($processedCount, $totalCollectionItems);
 
         foreach ($routes as $route) {
-            $collectionRoute = Arr::first($collectionItems, function ($item) use ($route) {
-                return $item['name'] == $route->uri();
-            });
-            $this->assertNotNull($collectionRoute);
-            $this->assertTrue(in_array($collectionRoute['request']['method'], $route->methods()));
+            $middlewares = $route->gatherMiddleware();
+            $included = false;
+            foreach ($middlewares as $middleware) {
+                if (in_array($middleware, config('api-postman.include_middleware'))) {
+                    $included = true;
+                    break;
+                }
+            }
+            if (!$included) {
+                continue;
+            }
+
+            $methods = array_filter($route->methods(), fn ($value) => $value !== 'HEAD');
+
+            foreach ($methods as $method) {
+                $collectionRoute = Arr::first($collectionItems, function ($item) use ($route, $method) {
+                    return $item['name'] == $route->uri() && $item['request']['method'] == $method;
+                });
+                $this->assertNotNull($collectionRoute);
+            }
         }
     }
 }
