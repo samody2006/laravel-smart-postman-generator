@@ -14,25 +14,57 @@ class FormDataProcessor
 
         /** @var ReflectionParameter $rulesParameter */
         $rulesParameter = collect($reflectionMethod->getParameters())
-            ->first(function ($value) {
-                $value = $value->getType();
+            ->first(function ($parameter) {
+                $type = $parameter->getType();
 
-                return $value && is_subclass_of($value->getName(), FormRequest::class);
+                if (! $type) {
+                    return false;
+                }
+
+                if ($type instanceof \ReflectionNamedType) {
+                    return is_subclass_of($type->getName(), FormRequest::class);
+                }
+
+                if ($type instanceof \ReflectionUnionType || $type instanceof \ReflectionIntersectionType) {
+                    foreach ($type->getTypes() as $subType) {
+                        if ($subType instanceof \ReflectionNamedType && is_subclass_of($subType->getName(), FormRequest::class)) {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
             });
 
         if ($rulesParameter) {
-            /** @var FormRequest $class */
-            $class = new ($rulesParameter->getType()->getName());
+            $type = $rulesParameter->getType();
+            $typeName = null;
 
-            $classRules = method_exists($class, 'rules') ? $class->rules() : [];
+            if ($type instanceof \ReflectionNamedType) {
+                $typeName = $type->getName();
+            } elseif ($type instanceof \ReflectionUnionType || $type instanceof \ReflectionIntersectionType) {
+                foreach ($type->getTypes() as $subType) {
+                    if ($subType instanceof \ReflectionNamedType && is_subclass_of($subType->getName(), FormRequest::class)) {
+                        $typeName = $subType->getName();
+                        break;
+                    }
+                }
+            }
 
-            foreach ($classRules as $fieldName => $rule) {
-                $rules->put($fieldName, $rule);
+            if ($typeName) {
+                /** @var FormRequest $class */
+                $class = new $typeName();
 
-                if (is_array($rule) && in_array('confirmed', $rule)) {
-                    $rules->put($fieldName.'_confirmation', $rule);
-                } elseif (is_string($rule) && str_contains($rule, 'confirmed')) {
-                    $rules->put($fieldName.'_confirmation', $rule);
+                $classRules = method_exists($class, 'rules') ? $class->rules() : [];
+
+                foreach ($classRules as $fieldName => $rule) {
+                    $rules->put($fieldName, $rule);
+
+                    if (is_array($rule) && in_array('confirmed', $rule)) {
+                        $rules->put($fieldName.'_confirmation', $rule);
+                    } elseif (is_string($rule) && str_contains($rule, 'confirmed')) {
+                        $rules->put($fieldName.'_confirmation', $rule);
+                    }
                 }
             }
         }
