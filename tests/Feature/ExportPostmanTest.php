@@ -17,6 +17,10 @@ class ExportPostmanTest extends TestCase
         parent::setUp();
 
         config()->set('api-postman.filename', 'test.json');
+        config()->set('api-postman.smart_naming', false);
+        config()->set('api-postman.structured', false);
+        config()->set('api-postman.group_by', 'none');
+        config()->set('api-postman.body_format', 'urlencoded');
 
         Storage::disk()->deleteDirectory('postman');
     }

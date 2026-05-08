@@ -26,6 +26,9 @@ Route::middleware('api')->group(function () {
 PHP);
 
         config()->set('api-postman.filename', 'test.json');
+        config()->set('api-postman.smart_naming', false);
+        config()->set('api-postman.structured', false);
+        config()->set('api-postman.group_by', 'none');
 
         Storage::disk()->deleteDirectory('postman');
     }
