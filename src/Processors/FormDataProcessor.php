@@ -53,7 +53,7 @@ class FormDataProcessor
 
             if ($typeName) {
                 /** @var FormRequest $class */
-                $class = new $typeName();
+                $class = new $typeName;
 
                 $classRules = method_exists($class, 'rules') ? $class->rules() : [];
 
