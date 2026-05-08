@@ -43,20 +43,21 @@
     },
 
     "require": {
-        "php": "^8.3",
+        "php": "^7.4|^8.0",
         "ext-json": "*",
-
-        "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
-        "illuminate/console": "^10.0|^11.0|^12.0|^13.0",
-        "illuminate/contracts": "^10.0|^11.0|^12.0|^13.0",
-        "illuminate/routing": "^10.0|^11.0|^12.0|^13.0",
-
+        "illuminate/config": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
+        "illuminate/console": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
+        "illuminate/contracts": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
+        "illuminate/filesystem": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
+        "illuminate/routing": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
+        "illuminate/support": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
+        "illuminate/validation": "^7.0|^8.0|^9.0|^10.0|^11.0|^12.0|^13.0",
         "phpstan/phpdoc-parser": "^1.26|^2.0"
     },
 
     "require-dev": {
         "laravel/pint": "^1.13",
-        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
         "phpunit/phpunit": "^10.0|^11.0"
     },
 
