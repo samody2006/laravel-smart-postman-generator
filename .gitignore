@@ -5,4 +5,4 @@ composer.lock
 .phpunit.cache/test-results
 .DS_Store
 SUGGESTION.md
-
+*.bak
