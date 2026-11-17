@@ -153,6 +153,41 @@ Supports:
 - arrays
 - nested request fields
 
+### Response Example Generation
+
+Each exported request now includes a Postman response example. The generator
+uses, in order, a configured example for the route URI or controller action, a
+JSON `@response` annotation on the controller method, and a basic sample inferred
+from the method's PHP return type. It never calls controller methods while
+exporting.
+
+Add a documented response when you want to describe the real response shape:
+
+```php
+/**
+ * @response 200 {"data":{"id":1,"name":"Jane Doe"}}
+ */
+public function show(): array
+{
+    // ...
+}
+```
+
+Or provide examples in `config/api-postman.php`, keyed by route URI or controller
+action:
+
+```php
+'response_examples' => [
+    'api/users/{user}' => [
+        'data' => ['id' => 1, 'name' => 'Jane Doe'],
+    ],
+],
+```
+
+Documented and configured examples are exported as formatted JSON response
+bodies. For complex response shapes, an explicit example is needed because
+Laravel return types alone do not describe array keys or resource serialization.
+
 ---
 
 # Smart Naming System (Planned)
@@ -209,7 +244,7 @@ Supported options:
 
 ---
 
-# Structured JSON Generation (Planned)
+# Structured JSON Generation
 
 Generate real nested JSON payloads from FormRequest validation rules.
 
@@ -411,7 +446,7 @@ Cancel User Order
 ---
 
 ## Phase 4
-- [ ] Response example generation
+- [x] Response example generation
 - [ ] OpenAPI support
 - [ ] Environment export support
 - [ ] Swagger compatibility

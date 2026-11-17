@@ -122,6 +122,14 @@ return [
     'include_doc_comments' => false,
 
     /*
+    | Response examples
+    | Use a route URI or controller action as the key. Values may be arrays or
+    | JSON strings. Method-level @response 200 {"data": []} annotations are
+    | also supported and are used when no configured example exists.
+    */
+    'response_examples' => [],
+
+    /*
     |--------------------------------------------------------------------------
     | Enable Form Data
     |--------------------------------------------------------------------------

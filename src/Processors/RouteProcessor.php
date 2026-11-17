@@ -107,7 +107,7 @@ class RouteProcessor
                         $uri,
                         $this->config['enable_formdata'] ? (new FormDataProcessor)->process($reflectionMethod) : collect()
                     ),
-                    'response' => [],
+                    'response' => $this->processResponse($method, $route, $reflectionMethod),
 
                     'protocolProfileBehavior' => [
                         'disableBodyPruning' => $this->config['protocol_profile_behavior']['disable_body_pruning'] ?? false,
@@ -250,15 +250,63 @@ class RouteProcessor
             ->all();
     }
 
-    protected function processResponse(string $method, array $action): array
+    protected function processResponse(string $method, Route $route, object $reflectionMethod): array
     {
-        return [
-            'code' => 200,
-            'body' => [
-                'mode' => 'raw',
-                'raw' => '',
+        $examples = $this->config['response_examples'] ?? [];
+        $action = $route->getActionName();
+        $example = $examples[$route->uri()] ?? $examples[$action] ?? null;
+        $status = 200;
+
+        if ($example === null && $reflectionMethod->getDocComment()) {
+            if (preg_match('/@response\s+(\d{3})\s+(\{[^\r\n]*\}|\[[^\r\n]*\])/', $reflectionMethod->getDocComment(), $matches)) {
+                $status = (int) $matches[1];
+                $example = json_decode($matches[2], true);
+            }
+        }
+
+        if (is_string($example)) {
+            $decoded = json_decode($example, true);
+            $example = json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+        }
+
+        if ($example === null) {
+            $type = $reflectionMethod->getReturnType();
+            $typeName = $type && method_exists($type, 'getName') ? $type->getName() : null;
+            switch ($typeName) {
+                case 'array':
+                    $example = new \stdClass;
+                    break;
+                case 'bool':
+                    $example = false;
+                    break;
+                case 'int':
+                    $example = 0;
+                    break;
+                case 'float':
+                    $example = 0.0;
+                    break;
+                case 'string':
+                    $example = '';
+                    break;
+                default:
+                    $example = new \stdClass;
+            }
+        }
+
+        return [[
+            'name' => $status.' Example',
+            'originalRequest' => [
+                'method' => strtoupper($method),
+                'header' => [],
+                'url' => '{{base_url}}/'.$route->uri(),
             ],
-        ];
+            'status' => 'OK',
+            'code' => $status,
+            '_postman_previewlanguage' => 'json',
+            'header' => [['key' => 'Content-Type', 'value' => 'application/json']],
+            'cookie' => [],
+            'body' => json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        ]];
     }
 
     /**
