@@ -155,11 +155,13 @@ Supports:
 
 ### Response Example Generation
 
-Each exported request now includes a Postman response example. The generator
+Each exported request now includes Postman response examples. The generator
 uses, in order, a configured example for the route URI or controller action, a
-JSON `@response` annotation on the controller method, and a basic sample inferred
-from the method's PHP return type. It never calls controller methods while
-exporting.
+JSON `@response` annotation, response data inferred from common controller
+patterns (including `jsonResponse()` and `JsonResource` returns), and a basic
+sample inferred from the PHP return type. It can also add error examples for
+literal `abort()`/`abort_unless()` status and message arguments. The generator
+does not call controller or service methods while exporting.
 
 Add a documented response when you want to describe the real response shape:
 
@@ -185,8 +187,9 @@ action:
 ```
 
 Documented and configured examples are exported as formatted JSON response
-bodies. For complex response shapes, an explicit example is needed because
-Laravel return types alone do not describe array keys or resource serialization.
+bodies. Static inference handles common literal response patterns; computed
+values and custom response envelopes should use an explicit example when their
+exact shape matters.
 
 ---
 

@@ -269,6 +269,14 @@ class RouteProcessor
             $example = json_last_error() === JSON_ERROR_NONE ? $decoded : null;
         }
 
+        $source = $this->getMethodSource($reflectionMethod);
+        $inferred = $example === null ? $this->inferResponseFromSource($source, $reflectionMethod) : [];
+
+        if ($example === null && ! empty($inferred)) {
+            $example = $inferred[0]['body'];
+            $status = $inferred[0]['code'];
+        }
+
         if ($example === null) {
             $type = $reflectionMethod->getReturnType();
             $typeName = $type && method_exists($type, 'getName') ? $type->getName() : null;
@@ -293,20 +301,237 @@ class RouteProcessor
             }
         }
 
-        return [[
+        $responses = [[
             'name' => $status.' Example',
             'originalRequest' => [
                 'method' => strtoupper($method),
                 'header' => [],
                 'url' => '{{base_url}}/'.$route->uri(),
             ],
-            'status' => 'OK',
+            'status' => $this->responseStatusText($status),
             'code' => $status,
             '_postman_previewlanguage' => 'json',
             'header' => [['key' => 'Content-Type', 'value' => 'application/json']],
             'cookie' => [],
             'body' => json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
         ]];
+
+        foreach (array_slice($inferred, 1) as $inferredResponse) {
+            $responses[] = [
+                'name' => $inferredResponse['code'].' Example',
+                'originalRequest' => [
+                    'method' => strtoupper($method),
+                    'header' => [],
+                    'url' => '{{base_url}}/'.$route->uri(),
+                ],
+                'status' => $inferredResponse['code'] === 403 ? 'Forbidden' : 'Error',
+                'code' => $inferredResponse['code'],
+                '_postman_previewlanguage' => 'json',
+                'header' => [['key' => 'Content-Type', 'value' => 'application/json']],
+                'cookie' => [],
+                'body' => json_encode($inferredResponse['body'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            ];
+        }
+
+        return $responses;
+    }
+
+    private function getMethodSource(object $method): string
+    {
+        if (! method_exists($method, 'getFileName') || ! $method->getFileName()) {
+            return '';
+        }
+
+        $lines = file($method->getFileName());
+
+        return implode('', array_slice($lines, $method->getStartLine() - 1, $method->getEndLine() - $method->getStartLine() + 1));
+    }
+
+    private function responseStatusText(int $status): string
+    {
+        $statuses = [
+            200 => 'OK',
+            201 => 'Created',
+            202 => 'Accepted',
+            204 => 'No Content',
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            422 => 'Unprocessable Entity',
+            500 => 'Internal Server Error',
+        ];
+
+        return $statuses[$status] ?? 'Response';
+    }
+
+    /** Infer common Laravel response helper patterns without executing application code. */
+    private function inferResponseFromSource(string $source, object $reflectionMethod): array
+    {
+        $responses = [];
+
+        $resource = $this->inferResourceFromSource($source, $reflectionMethod);
+        if ($resource !== null) {
+            $responses[] = ['code' => 200, 'body' => $resource];
+        }
+
+        if (preg_match('/(?:\$this->)?jsonResponse\s*\((.*)\)\s*;/s', $source, $match)) {
+            $arguments = $this->splitArguments($match[1]);
+            $data = isset($arguments[0]) ? $this->parseLiteral($arguments[0]) : null;
+            $message = isset($arguments[1]) ? $this->parseLiteral($arguments[1]) : null;
+            $body = [];
+            if ($message !== null) {
+                $body['message'] = $message;
+            }
+            $body['data'] = $data;
+            array_unshift($responses, ['code' => 200, 'body' => $body]);
+        }
+
+        if (preg_match('/abort(?:_unless|_if)?\s*\([^;]*?,\s*(\d{3})\s*,\s*([\'"])(.*?)\2\s*\)/s', $source, $match)) {
+            $error = ['message' => stripcslashes($match[3])];
+            $responses[] = ['code' => (int) $match[1], 'body' => $error];
+        }
+
+        return $responses;
+    }
+
+    private function inferResourceFromSource(string $source, object $reflectionMethod): ?array
+    {
+        if (! preg_match('/return\s+(?:new\s+)?([\\\\A-Za-z_][\\\\A-Za-z0-9_]*Resource)(?:::collection)?\s*\(/', $source, $match)) {
+            return null;
+        }
+
+        $resourceName = $match[1];
+        if ($resourceName[0] !== '\\' && strpos($resourceName, '\\') === false) {
+            $classFile = $reflectionMethod->getDeclaringClass()->getFileName();
+            $classSource = $classFile ? file_get_contents($classFile) : $source;
+            $imported = false;
+            if (preg_match_all('/^\s*use\s+([^;]+);/mi', $classSource, $imports)) {
+                foreach ($imports[1] as $import) {
+                    $parts = preg_split('/\s+as\s+/i', trim($import));
+                    $importClass = trim($parts[0], " \\\\\t\\r\\n");
+                    $alias = isset($parts[1]) ? trim($parts[1]) : substr(strrchr('\\'.$importClass, '\\'), 1);
+                    if ($alias === $resourceName) {
+                        $resourceName = $importClass;
+                        $imported = true;
+                        break;
+                    }
+                }
+            }
+            if (! $imported && preg_match('/namespace\s+([A-Za-z_\\\\][A-Za-z0-9_\\\\]*)\s*;/', $classSource, $namespace)) {
+                $resourceName = trim($namespace[1], '\\').'\\'.$resourceName;
+            }
+        }
+
+        $resourceName = ltrim($resourceName, '\\');
+        if (! class_exists($resourceName)) {
+            return null;
+        }
+
+        try {
+            $resource = new ReflectionClass($resourceName);
+            if (! $resource->hasMethod('toArray')) {
+                return null;
+            }
+            $toArraySource = $this->getMethodSource($resource->getMethod('toArray'));
+        } catch (\ReflectionException $exception) {
+            return null;
+        }
+
+        if (! preg_match('/return\s*\[([\s\S]*?)\];/', $toArraySource, $arrayMatch)) {
+            return null;
+        }
+
+        $fields = [];
+        if (preg_match_all('/[\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"]\s*=>\s*([^,\r\n]+)/', $arrayMatch[1], $fieldMatches, PREG_SET_ORDER)) {
+            foreach ($fieldMatches as $fieldMatch) {
+                $fields[$fieldMatch[1]] = $this->sampleForField($fieldMatch[1], trim($fieldMatch[2]));
+            }
+        }
+
+        if (empty($fields)) {
+            return null;
+        }
+
+        return strpos($match[0], '::collection') !== false
+            ? ['data' => [$fields]]
+            : ['data' => $fields];
+    }
+
+    private function sampleForField(string $field, string $expression)
+    {
+        $literal = $this->parseLiteral($expression);
+        if ($literal !== null || trim($expression) === 'null') {
+            return $literal;
+        }
+
+        $name = strtolower($field);
+        if (preg_match('/(^|_)(id|count|total|amount|price|quantity|number|age)(_|$)/', $name)) {
+            return 1;
+        }
+        if (preg_match('/(^|_)(is|has|can|enabled|active|verified|published)(_|$)/', $name)) {
+            return true;
+        }
+        if (strpos($name, 'email') !== false) {
+            return 'jane@example.com';
+        }
+        if (strpos($name, 'date') !== false || strpos($name, '_at') !== false) {
+            return '2026-01-01T00:00:00Z';
+        }
+
+        return '';
+    }
+
+    private function splitArguments(string $arguments): array
+    {
+        $parts = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($arguments);
+
+        for ($index = 0; $index < $length; $index++) {
+            $character = $arguments[$index];
+            if ($quote !== null) {
+                if ($character === $quote && ($index === 0 || $arguments[$index - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($character === "'" || $character === '"') {
+                $quote = $character;
+            } elseif ($character === '(' || $character === '[' || $character === '{') {
+                $depth++;
+            } elseif ($character === ')' || $character === ']' || $character === '}') {
+                $depth--;
+            } elseif ($character === ',' && $depth === 0) {
+                $parts[] = trim(substr($arguments, $start, $index - $start));
+                $start = $index + 1;
+            }
+        }
+
+        $parts[] = trim(substr($arguments, $start));
+
+        return $parts;
+    }
+
+    private function parseLiteral(string $expression)
+    {
+        $expression = trim($expression);
+        if ($expression === 'null') {
+            return null;
+        }
+        if ($expression === 'true' || $expression === 'false') {
+            return $expression === 'true';
+        }
+        if (preg_match('/^([\'"])(.*)\1$/s', $expression, $match)) {
+            return stripcslashes($match[2]);
+        }
+        if (is_numeric($expression)) {
+            return strpos($expression, '.') === false ? (int) $expression : (float) $expression;
+        }
+
+        return null;
     }
 
     /**
